@@ -3,8 +3,10 @@ import 'dart:html';
 import 'dart:math';
 import 'dart:web_audio';
 
+// Run timers at 60 Hz (16 milliseconds per tick).
 const int TICKS_PER_HZ = 16;
 
+// Sprites for hex digits 0 - F.
 const List<int> HEX_DIGITS = [
   0xF0, 0x90, 0x90, 0x90, 0xF0,
   0x20, 0x60, 0x20, 0x20, 0x70,
@@ -29,6 +31,7 @@ class Display {
     _canvas = canvas;
     _ctx = canvas.getContext('2d');
 
+    // Init _screen to be empty.
     _screen = new List<List<bool>>(32);
     for (int i = 0; i < 32; i++) {
       _screen[i] = new List<bool>.filled(64, false);
@@ -63,31 +66,34 @@ class Display {
     return collision;
   }
 
+  // Draw a single "pixel" on screen.
   bool DrawPixel(int x, int y) {
+    //  Wrap around.
     x = x % 64;
     y = y % 32;
 
-    bool col = false;
+    // If this pixel is already drawn on screen, remove it and return a collision.
     if (_screen[y][x]) {
-      col = true;
       _screen[y][x] = false;
-      _ctx.setFillColorRgb(255, 255, 255);
+      _ctx.setFillColorRgb(255, 255, 255); // White
       _ctx.fillRect(x * 10, y * 10, 10, 10);
-    } else {
-      _screen[y][x] = true;
-      _ctx.setFillColorRgb(0, 0, 0);
-      _ctx.fillRect(x * 10, y * 10, 10, 10);
+      return true;
     }
 
-    return col;
+    _screen[y][x] = true;
+    _ctx.setFillColorRgb(0, 0, 0); // Black
+    _ctx.fillRect(x * 10, y * 10, 10, 10);
+    return false;
   }
 
   CanvasElement _canvas;
   CanvasRenderingContext2D _ctx;
 
+  // Keep track of what is shown on screen for XOR'ing sprites onto the screen.
   List<List<bool>> _screen;
 }
 
+// Helper class to track which keys are pressed.
 class Keyboard {
   Keyboard() {
     _keys = new Map<int, num>();
@@ -114,6 +120,7 @@ class Keyboard {
     return -1;
   }
 
+  // Map hex value to key.
   int GetKeyCode(int value) {
     switch (value) {
       case 1:
@@ -153,6 +160,7 @@ class Keyboard {
     return 0;
   }
 
+  // Map key to hex value.
   int GetValue(int key) {
     switch (key) {
       case KeyCode.ONE:
@@ -195,21 +203,19 @@ class Keyboard {
 
 }
 
+// Helper class for playing a tone.
 class Audio {
   Audio() {
     _context = new AudioContext();
   }
 
   void Start() {
-    print("start");
     _node = _context.createOscillator();
-
     _node.connectNode(_context.destination);
     _node.start2(0);
   }
 
   void Stop() {
-    print("stop");
     _node.disconnect();
     _node = null;
   }
@@ -223,7 +229,7 @@ class Chip8 {
     _ram = new Uint8List(0x1000);
     _reg = new Uint8List(16);
 
-    _pc = 0x200;
+    _pc = 0x200; // Default starting address.
     _sp = 0;
     _stack = new Uint16List(16);
 
@@ -239,6 +245,7 @@ class Chip8 {
     }
   }
 
+  // Copy rom into ram starting at 0x200.
   void LoadRom(Uint8List rom) {
     print(rom);
     for (int i = 0; i < rom.length; i++) {
@@ -246,7 +253,9 @@ class Chip8 {
     }
   }
 
+  // time is the number of milliseconds that have elapsed since the last step.
   void Step(num time) {
+    // Decrement pending timers.
     _pendingTicks += time;
     if (_pendingTicks > TICKS_PER_HZ) {
       if (_st > 0) _st--;
@@ -254,6 +263,7 @@ class Chip8 {
       _pendingTicks -= TICKS_PER_HZ;
     }
 
+    // Check if audio should be started or stopped.
     if (_st > 0 && !playing) {
       _audio.Start();
       playing = true;
@@ -277,6 +287,7 @@ class Chip8 {
 
     // print(op.toRadixString(16).padLeft(4, '0'));
 
+    // Giant switch to handle all op codes.
     switch ((op & 0xF000) >> 12) {
       case 0x0: // 0nnn - SYS addr
         // Check for specific system functions that are supported.
@@ -451,15 +462,18 @@ class Chip8 {
     // print("PC: $_pc I: $_i SP: $_sp");
   }
 
-  int _pc;
+  // Registers and RAM.
   Uint8List _ram;
-
-  Uint8List _reg;
+  int _pc;
+  Uint8List _reg; // V0 - VF
   int _i;
 
+  // Store stack outside of RAM for ease of use. Could put this in the system
+  // section of RAM to be more realistic.
   int _sp;
   Uint16List _stack;
 
+  // Timers.
   int _pendingTicks = 0;
   int _dt = 0;
   int _st = 0;
@@ -468,10 +482,10 @@ class Chip8 {
   Keyboard _keyboard;
 
   Audio _audio;
-  bool playing = false;
+  bool playing = false; // Whether audio is currently playing.
 
-  bool keyWait = false;
-  int keyReg;
+  bool keyWait = false; // Whether we are waiting on a key press.
+  int keyReg; // The register to store the key press.
 
   Random _rand;
 }
